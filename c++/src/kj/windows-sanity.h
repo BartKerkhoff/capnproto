@@ -45,7 +45,8 @@
 
 #undef ERROR
 #undef NONE
-#define _exit exit
+#include <stdlib.h>
+#define _exit _Exit
 #define strsignal(signo) "strsignal not supported"
 
 #elif defined(_INC_WINDOWS)
