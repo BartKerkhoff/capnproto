@@ -95,6 +95,10 @@ static void __lsan_ignore_object(const void* p) {}
 // TODO(cleanup): Remove the LSAN stuff per https://github.com/capnproto/capnproto/pull/1255
 // feedback.
 
+#if __vxworks
+#include "windows-sanity.h"
+#endif
+
 namespace {
 template <typename T>
 inline T* lsanIgnoreObjectAndReturn(T* ptr) {

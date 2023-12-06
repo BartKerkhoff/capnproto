@@ -18,7 +18,7 @@ set(kj_sources_lite
   thread.c++
   main.c++
   arena.c++
-  test-helpers.c++
+  # test-helpers.c++
   units.c++
   encoding.c++
 )

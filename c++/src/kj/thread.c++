@@ -30,6 +30,10 @@
 #include <signal.h>
 #endif
 
+#if __vxworks
+#include "windows-sanity.h"
+#endif
+
 namespace kj {
 
 #if _WIN32
