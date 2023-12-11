@@ -30,7 +30,9 @@
 #include <limits>
 #include <pthread.h>
 #include <map>
+#if !__vxworks
 #include <sys/wait.h>
+#endif
 #include <unistd.h>
 
 #if KJ_USE_EPOLL
@@ -47,6 +49,14 @@
 #else
 #include <poll.h>
 #include <fcntl.h>
+#endif
+
+#if __vxworks
+#include "windows-sanity.h"
+// #include "wait.h"
+// #define WNOHANG			0x01
+#include <taskLib.h>
+#include <errnoLib.h>
 #endif
 
 namespace kj {
@@ -124,10 +134,14 @@ void UnixEventPort::signalHandler(int, siginfo_t* siginfo, void*) noexcept {
 namespace {
 
 struct SignalCapture {
+#if __vxworks
+  jmp_buf jumpTo;
+#else
   sigjmp_buf jumpTo;
+#endif
   siginfo_t siginfo;
 
-#if __APPLE__
+#if __APPLE__ || __vxworks
   sigset_t originalMask;
   // The signal mask to be restored when jumping out of the signal handler.
   //
@@ -168,7 +182,13 @@ void UnixEventPort::signalHandler(int, siginfo_t* siginfo, void*) noexcept {
     // equivalent to `longjmp()` on Linux or `_longjmp()` on BSD/macOS. See comments on
     // SignalCapture::originalMask for explanation.
     pthread_sigmask(SIG_SETMASK, &capture->originalMask, nullptr);
+
+#ifdef __vxworks
+    longjmp(capture->jumpTo, false);
+#else
     siglongjmp(capture->jumpTo, false);
+#endif
+
 #else
     siglongjmp(capture->jumpTo, true);
 #endif
@@ -262,6 +282,28 @@ public:
 };
 
 void UnixEventPort::ChildSet::checkExits() {
+#ifdef __vxworks
+  auto iter = waiters.begin();
+  int taskIds[100];
+  int taskCount = 0;
+  auto taskIdCmp = [](const void* l, const void* r){return *((int*)l) - *((int*)r);};
+
+  if (iter != waiters.end())
+  {        
+    taskCount = taskIdListGet(taskIds, 100);
+    qsort((void*)taskIds, taskCount, sizeof(int), taskIdCmp);
+  }
+  while (iter != waiters.end())
+  {
+    int pid = iter->first;
+    if (bsearch (&pid, taskIds, taskCount, sizeof(int), taskIdCmp) == NULL)
+    {
+      iter->second->pidRef = nullptr;
+      iter->second->fulfiller.fulfill(kj::cp(errnoOfTaskGet(pid)));
+    }
+    iter++;
+  }
+#else
   for (;;) {
     int status;
     pid_t pid;
@@ -279,6 +321,7 @@ void UnixEventPort::ChildSet::checkExits() {
       iter->second->fulfiller.fulfill(kj::cp(status));
     }
   }
+#endif
 }
 
 Promise<int> UnixEventPort::onChildExit(Maybe<pid_t>& pid) {
@@ -1426,7 +1469,11 @@ bool UnixEventPort::wait() {
   SignalCapture capture;
 
 #if KJ_BROKEN_SIGLONGJMP
+#if __vxworks
+  if (setjmp(capture.jumpTo)) {
+#else
   if (sigsetjmp(capture.jumpTo, false)) {
+#endif
 #else
   if (sigsetjmp(capture.jumpTo, true)) {
 #endif
@@ -1513,7 +1560,11 @@ bool UnixEventPort::poll() {
     KJ_DEFER(threadCapture = nullptr);
     while (signalCount-- > 0) {
 #if KJ_BROKEN_SIGLONGJMP
+#if __vxworks
+      if (setjmp(capture.jumpTo)) {
+#else
       if (sigsetjmp(capture.jumpTo, false)) {
+#endif
 #else
       if (sigsetjmp(capture.jumpTo, true)) {
 #endif

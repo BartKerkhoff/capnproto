@@ -43,11 +43,19 @@
 
 #elif __vxworks
 
+#define ERROR (-1)
+#define NONE (-1)
+#define IMPORT extern
+#include <stdlib.h>
+#include <ioLib.h>
+#include <ipcom_sock2.h>
+#include <pthread.h>
 #undef ERROR
 #undef NONE
-#include <stdlib.h>
+#undef IMPORT
 #define _exit _Exit
 #define strsignal(signo) "strsignal not supported"
+#define	SCM_RIGHTS	0x01
 
 #elif defined(_INC_WINDOWS)
 

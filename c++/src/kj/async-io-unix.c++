@@ -681,7 +681,7 @@ private:
             }
           } else if (spaceLeft >= CMSG_LEN(0) && ancillaryMsgCallback != nullptr) {
             auto len = kj::min(cmsg->cmsg_len, spaceLeft);
-            auto data = ArrayPtr<const byte>(CMSG_DATA(cmsg), len - CMSG_LEN(0));
+            auto data = ArrayPtr<const byte>(reinterpret_cast<const unsigned char *>(CMSG_DATA(cmsg)), len - CMSG_LEN(0));
             ancillaryMessages.add(cmsg->cmsg_level, cmsg->cmsg_type, data);
           }
 
@@ -1967,6 +1967,30 @@ Own<DatagramReceiver> DatagramPortImpl::makeReceiver(DatagramReceiver::Capacity 
 }
 
 // =======================================================================================
+#ifdef __vxworks
+void vxSocketPair(int fds[]) {
+  // static int cnt = 0;
+  // int type = SOCK_STREAM;
+  // fds[0] = socket(AF_UNIX, type, 0);
+  // fds[1] = socket(AF_UNIX, type, 0);
+  // struct sockaddr_un name;
+  // name.sun_family = AF_UNIX;
+  // KJ_SYSCALL(bind(fds[0], ))
+
+  static const char* localHostAddr = {"127.0.0.1"};
+  fds[0] = socket(AF_INET, SOCK_STREAM, 0);
+  fds[1] = socket(AF_INET, SOCK_STREAM, 0);
+  struct sockaddr_in address;
+  unsigned int addressLen = sizeof(address);
+  address.sin_family = AF_INET;
+  address.sin_addr.s_addr = inet_addr (localHostAddr);
+  address.sin_port = 0;
+
+  KJ_SYSCALL(bind(fds[0], (struct sockaddr *) &address, sizeof(address)));
+  KJ_SYSCALL(getsockname (fds[0], (struct sockaddr *) &address, &addressLen));
+  KJ_SYSCALL(connect(fds[1], (struct sockaddr *) &address, sizeof(address)));
+}
+#endif
 
 class AsyncIoProviderImpl final: public AsyncIoProvider {
 public:
@@ -1992,7 +2016,12 @@ public:
 #if __linux__ && !__BIONIC__
     type |= SOCK_NONBLOCK | SOCK_CLOEXEC;
 #endif
+
+#if __vxworks
+    vxSocketPair(fds);
+#else
     KJ_SYSCALL(socketpair(AF_UNIX, type, 0, fds));
+#endif
     return TwoWayPipe { {
       lowLevel.wrapSocketFd(fds[0], NEW_FD_FLAGS),
       lowLevel.wrapSocketFd(fds[1], NEW_FD_FLAGS)
@@ -2005,7 +2034,12 @@ public:
 #if __linux__ && !__BIONIC__
     type |= SOCK_NONBLOCK | SOCK_CLOEXEC;
 #endif
+
+#if __vxworks
+    vxSocketPair(fds);
+#else
     KJ_SYSCALL(socketpair(AF_UNIX, type, 0, fds));
+#endif
     return CapabilityPipe { {
       lowLevel.wrapUnixSocketFd(fds[0], NEW_FD_FLAGS),
       lowLevel.wrapUnixSocketFd(fds[1], NEW_FD_FLAGS)
@@ -2023,7 +2057,12 @@ public:
 #if __linux__ && !__BIONIC__
     type |= SOCK_NONBLOCK | SOCK_CLOEXEC;
 #endif
+
+#if __vxworks
+    vxSocketPair(fds);
+#else
     KJ_SYSCALL(socketpair(AF_UNIX, type, 0, fds));
+#endif
 
     int threadFd = fds[1];
     KJ_ON_SCOPE_FAILURE(close(threadFd));
