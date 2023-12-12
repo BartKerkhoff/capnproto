@@ -18,7 +18,7 @@ set(kj_sources_lite
   thread.c++
   main.c++
   arena.c++
-  test-helpers.c++
+  # test-helpers.c++
   units.c++
   encoding.c++
 )
@@ -27,7 +27,7 @@ set(kj_sources_heavy
   string-tree.c++
   time.c++
   filesystem.c++
-  filesystem-disk-unix.c++
+  # filesystem-disk-unix.c++
   filesystem-disk-win32.c++
   parse/char.c++
 )
@@ -172,7 +172,7 @@ set(kj-http_headers
   compat/url.h
   compat/http.h
 )
-if(NOT CAPNP_LITE)
+if(NOT CAPNP_LIB_ONLY AND NOT CAPNP_LITE)
   add_library(kj-http ${kj-http_sources})
   add_library(CapnProto::kj-http ALIAS kj-http)
   if(WITH_ZLIB)

@@ -35,6 +35,10 @@
 #include <sys/mman.h>
 #endif
 
+#if __vxworks
+#include "windows-sanity.h"
+#endif
+
 namespace kj {
 
 namespace {

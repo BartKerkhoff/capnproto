@@ -58,6 +58,10 @@
 #include <windows.h>
 #endif
 
+#if __vxworks
+#include "windows-sanity.h"
+#endif
+
 namespace kj {
 #if KJ_TRACK_LOCK_BLOCKING
 static thread_local const BlockedOnReason* tlsBlockReason __attribute((tls_model("initial-exec")));
@@ -870,15 +874,22 @@ void Once::reset() {
     } \
   }
 
-Mutex::Mutex(): mutex(PTHREAD_RWLOCK_INITIALIZER) {
-#if defined(__ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__) && __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ < 1070
-  // In older versions of MacOS, mutexes initialized statically cannot be destroyed,
-  // so we must call the init function.
-  KJ_PTHREAD_CALL(pthread_rwlock_init(&mutex, NULL));
-#endif
+Mutex::Mutex()
+#if __vxworks
+{
+  //pthread_mutex_init(&mutex, )
+  mutex = PTHREAD_MUTEX_INITIALIZER;
 }
+#elif
+  : mutex(PTHREAD_RWLOCK_INITIALIZER) {}
+#endif
+
 Mutex::~Mutex() {
+#if __vxworks
+  KJ_PTHREAD_CLEANUP(pthread_mutex_destroy(&mutex));
+#elif
   KJ_PTHREAD_CLEANUP(pthread_rwlock_destroy(&mutex));
+#endif
 }
 
 bool Mutex::lock(Exclusivity exclusivity, Maybe<Duration> timeout, NoopSourceLocation) {
@@ -886,18 +897,30 @@ bool Mutex::lock(Exclusivity exclusivity, Maybe<Duration> timeout, NoopSourceLoc
     KJ_UNIMPLEMENTED("Locking a mutex with a timeout is only supported on Linux.");
   }
   switch (exclusivity) {
+    
+#if __vxworks
+    case EXCLUSIVE:
+    case SHARED:
+      KJ_PTHREAD_CALL(pthread_mutex_lock(&mutex));
+      break;
+#elif
     case EXCLUSIVE:
       KJ_PTHREAD_CALL(pthread_rwlock_wrlock(&mutex));
       break;
     case SHARED:
       KJ_PTHREAD_CALL(pthread_rwlock_rdlock(&mutex));
       break;
+#endif
   }
   return true;
 }
 
 void Mutex::unlock(Exclusivity exclusivity, Waiter* waiterToSkip) {
+#if __vxworks
+  KJ_DEFER(KJ_PTHREAD_CALL(pthread_mutex_unlock(&mutex)));
+#elif
   KJ_DEFER(KJ_PTHREAD_CALL(pthread_rwlock_unlock(&mutex)));
+#endif
 
   if (exclusivity == EXCLUSIVE) {
     // Check if there are any conditional waiters. Note we only do this when unlocking an
@@ -931,6 +954,12 @@ void Mutex::unlock(Exclusivity exclusivity, Waiter* waiterToSkip) {
 }
 
 void Mutex::assertLockedByCaller(Exclusivity exclusivity) const {
+#if __vxworks
+  if (pthread_mutex_trylock(&mutex) == 0) {
+    pthread_mutex_unlock(&mutex);
+    KJ_FAIL_ASSERT("Tried to call getAlreadyLocked*() but lock is not held.");
+  }
+#elif
   switch (exclusivity) {
     case EXCLUSIVE:
       // A read lock should fail if the mutex is already held for writing.
@@ -948,6 +977,7 @@ void Mutex::assertLockedByCaller(Exclusivity exclusivity) const {
       }
       break;
   }
+#endif
 }
 
 void Mutex::wait(Predicate& predicate, Maybe<Duration> timeout, NoopSourceLocation) {
@@ -956,14 +986,6 @@ void Mutex::wait(Predicate& predicate, Maybe<Duration> timeout, NoopSourceLocati
     nullptr, waitersTail, predicate, nullptr,
     PTHREAD_COND_INITIALIZER, PTHREAD_MUTEX_INITIALIZER
   };
-
-#if defined(__ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__) && __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ < 1070
-  // In older versions of MacOS, mutexes initialized statically cannot be destroyed,
-  // so we must call the init function.
-  KJ_PTHREAD_CALL(pthread_cond_init(&waiter.condvar, NULL));
-  KJ_PTHREAD_CALL(pthread_mutex_init(&waiter.stupidMutex, NULL));
-#endif
-
   addWaiter(waiter);
 
   // To guarantee that we've re-locked the mutex before scope exit, keep track of whether it is
@@ -1073,13 +1095,7 @@ void Mutex::induceSpuriousWakeupForTest() {
 
 Once::Once(bool startInitialized)
     : state(startInitialized ? INITIALIZED : UNINITIALIZED),
-      mutex(PTHREAD_MUTEX_INITIALIZER) {
-#if defined(__ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__) && __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ < 1070
-  // In older versions of MacOS, mutexes initialized statically cannot be destroyed,
-  // so we must call the init function.
-  KJ_PTHREAD_CALL(pthread_mutex_init(&mutex, NULL));
-#endif
-}
+      mutex(PTHREAD_MUTEX_INITIALIZER) {}
 Once::~Once() {
   KJ_PTHREAD_CLEANUP(pthread_mutex_destroy(&mutex));
 }

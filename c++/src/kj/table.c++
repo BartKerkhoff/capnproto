@@ -356,6 +356,10 @@ void BTreeImpl::growTree(uint minCapacity) {
   NodeUnion* newTree = reinterpret_cast<NodeUnion*>(
       _aligned_malloc(newCapacity * sizeof(BTreeImpl::NodeUnion), sizeof(BTreeImpl::NodeUnion)));
   KJ_ASSERT(newTree != nullptr, "memory allocation failed", newCapacity);
+#elif __vxworks
+  NodeUnion* newTree = reinterpret_cast<NodeUnion*>(
+      aligned_alloc(sizeof(BTreeImpl::NodeUnion), newCapacity * sizeof(BTreeImpl::NodeUnion)));
+  KJ_ASSERT(newTree != nullptr, "memory allocation failed", newCapacity);
 #else
   // macOS, OpenBSD, and Android lack aligned_alloc(), but have posix_memalign(). Fine.
   void* allocPtr;

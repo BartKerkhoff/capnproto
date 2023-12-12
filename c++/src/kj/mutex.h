@@ -197,6 +197,9 @@ private:
 #elif _WIN32 || __CYGWIN__
   uintptr_t srwLock;  // Actually an SRWLOCK, but don't want to #include <windows.h> in header.
 
+#elif __vxworks
+  mutable pthread_mutex_t mutex;
+
 #else
   mutable pthread_rwlock_t mutex;
 #endif

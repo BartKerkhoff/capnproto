@@ -28,6 +28,10 @@
 #include "mutex.h"
 #include <map>
 
+#if __vxworks
+#include "windows-sanity.h"
+#endif
+
 namespace kj {
 
 Path::Path(StringPtr name): Path(heapString(name)) {}

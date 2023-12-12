@@ -144,7 +144,7 @@ set(capnp-websocket_sources
 set(capnp-websocket_headers
   compat/websocket-rpc.h
 )
-if(NOT CAPNP_LITE)
+if(NOT CAPNP_LIB_ONLY AND NOT CAPNP_LITE)
   add_library(capnp-websocket ${capnp-websocket_sources})
   add_library(CapnProto::capnp-websocket ALIAS capnp-websocket)
   target_link_libraries(capnp-websocket PUBLIC capnp capnp-rpc kj-http kj-async kj)
@@ -178,7 +178,7 @@ if(NOT CAPNP_LITE)
   install(FILES ${capnpc_headers} DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/capnp")
 endif()
 
-if(NOT CAPNP_LITE)
+if(NOT CAPNP_LIB_ONLY AND NOT CAPNP_LITE)
   add_executable(capnp_tool
     compiler/module-loader.c++
     compiler/capnp.c++

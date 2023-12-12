@@ -78,6 +78,10 @@
 
 #include <stdlib.h>
 
+#if __vxworks
+#include "windows-sanity.h"
+#endif
+
 #if KJ_HAS_COMPILER_FEATURE(address_sanitizer)
 // Clang's address sanitizer requires special hints when switching fibers, especially in order for
 // stack-use-after-return handling to work right.

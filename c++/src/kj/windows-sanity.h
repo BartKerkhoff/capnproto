@@ -36,10 +36,26 @@
 // windows-sanity.h, we can be sure that no conflicts will occur regardless of in what order the
 // application chooses to include these headers vs. windows.h.
 
-#if !_WIN32 && !__CYGWIN__
+#if !_WIN32 && !__CYGWIN__ && !__vxworks
 
 // Not on Windows. Tell the compiler never to try to include this again.
 #pragma once
+
+#elif __vxworks
+
+#define ERROR (-1)
+#define NONE (-1)
+#define IMPORT extern
+#include <stdlib.h>
+#include <ioLib.h>
+#include <ipcom_sock2.h>
+#include <pthread.h>
+#undef ERROR
+#undef NONE
+#undef IMPORT
+#define _exit _Exit
+#define strsignal(signo) "strsignal not supported"
+#define	SCM_RIGHTS	0x01
 
 #elif defined(_INC_WINDOWS)
 
