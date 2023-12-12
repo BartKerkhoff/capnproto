@@ -1108,6 +1108,7 @@ public:
 #if KJ_NO_EXCEPTIONS
     logException(LogSeverity::FATAL, mv(exception));
 #else
+    logException(LogSeverity::FATAL, mv(exception));
     throw ExceptionImpl(mv(exception));
 #endif
   }
